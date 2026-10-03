@@ -8,4 +8,8 @@ export const DatabaseModule = TypeOrmModule.forRoot({
   username: 'postgres',
   password: 'postgres',
   database: 'playground',
+  // Picks up every entity registered through TypeOrmModule.forFeature().
+  autoLoadEntities: true,
+  // Playground only: creates/alters tables from entities on startup.
+  synchronize: true,
 });

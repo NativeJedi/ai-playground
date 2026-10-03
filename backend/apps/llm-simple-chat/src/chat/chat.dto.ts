@@ -1,26 +1,21 @@
-import { Type } from 'class-transformer';
-import { ArrayNotEmpty, IsArray, IsIn, IsNotEmpty, IsString, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export const CHAT_ROLES = ['user', 'assistant'] as const;
 export type ChatRole = (typeof CHAT_ROLES)[number];
 
-export class ChatMessageDto {
-  @IsIn(CHAT_ROLES)
-  role: ChatRole;
-
+export class SendMessageDto {
   @IsString()
   @IsNotEmpty()
   content: string;
 }
 
-export class ChatRequestDto {
-  @IsArray()
-  @ArrayNotEmpty()
-  @ValidateNested({ each: true })
-  @Type(() => ChatMessageDto)
-  messages: ChatMessageDto[];
+export class ChatMessageDto {
+  role: ChatRole;
+  content: string;
 }
 
-export class ChatResponseDto {
-  message: ChatMessageDto;
+export class ConversationParamsDto {
+  @IsString()
+  @IsNotEmpty()
+  conversationId: string;
 }
