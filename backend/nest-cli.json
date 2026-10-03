@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps/llm-simple-chat/src",
+  "monorepo": true,
+  "root": "apps/llm-simple-chat",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "builder": "rspack",
+    "tsConfigPath": "apps/llm-simple-chat/tsconfig.app.json"
+  },
+  "projects": {
+    "llm-simple-chat": {
+      "type": "application",
+      "root": "apps/llm-simple-chat",
+      "entryFile": "main",
+      "sourceRoot": "apps/llm-simple-chat/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/llm-simple-chat/tsconfig.app.json"
+      }
+    },
+    "config": {
+      "type": "library",
+      "root": "libs/config",
+      "entryFile": "index",
+      "sourceRoot": "libs/config/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/config/tsconfig.lib.json"
+      }
+    }
+  }
+}

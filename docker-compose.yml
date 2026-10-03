@@ -1,0 +1,16 @@
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+
+  llm-simple-chat:
+    build:
+      context: ./backend
+      args:
+        APP: llm-simple-chat
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "3001:3001"
