@@ -4,6 +4,7 @@ A set of small AI demos. Each demo is a page in the frontend and a service in th
 
 - `frontend/` — React, Tailwind, React Router
 - `backend/` — NestJS monorepo, one app per demo, each on its own port with CORS enabled
+- Postgres via TypeORM, connected in `backend/libs/database` (no entities yet)
 
 ## Run
 
@@ -15,14 +16,15 @@ Open `http://localhost:8080`. The chat API runs on port 3001.
 
 Secrets such as API keys go in `.env`. It is optional and unused so far: `cp .env.example .env`.
 
-## Develop without Docker
+## Develop
 
-Backend apps read `.env` from the repo root when it exists.
+The backend connects to the host `postgres`, so run it with Docker:
 
 ```bash
-cd backend && npm install
-npm run start:dev:llm-simple-chat
+docker compose up --build
 ```
+
+Frontend with hot reload (backend still in Docker):
 
 ```bash
 cd frontend && npm install && npm run dev

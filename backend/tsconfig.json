@@ -22,7 +22,8 @@
       "node"
     ],
     "paths": {
-      "@app/config": ["./libs/config/src/index.ts"]
+      "@app/config": ["./libs/config/src/index.ts"],
+      "@app/database": ["./libs/database/src/index.ts"]
     }
   }
 }
