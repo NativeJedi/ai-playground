@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChatService, type ChatMessage } from './ChatService.ts'
+import { ChatService, type ChatMessage, type Provider } from './ChatService.ts'
 
 // React state on top of ChatService.
 export function useChat() {
@@ -21,12 +21,12 @@ export function useChat() {
     return () => service.unmount()
   }, [service])
 
-  async function sendMessage(content: string) {
+  async function sendMessage(content: string, provider: Provider) {
     if (isStreaming) return
 
     setError(null)
     setIsStreaming(true)
-    await service.send(content)
+    await service.send(content, provider)
     setIsStreaming(false)
   }
 

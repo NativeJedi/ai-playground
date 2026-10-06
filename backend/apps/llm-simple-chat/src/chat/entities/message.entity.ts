@@ -5,8 +5,7 @@ import {
   Index,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { CHAT_ROLES } from './chat.dto.js';
-import type { ChatRole } from './chat.dto.js';
+import { CHAT_ROLES, type ChatRole } from '../chat.dto.js';
 
 @Entity('messages')
 @Index(['userId', 'conversationId'])

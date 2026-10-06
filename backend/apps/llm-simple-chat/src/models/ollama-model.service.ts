@@ -1,18 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Ollama } from 'ollama';
 import { LlmMessage, LlmModelService } from './llm-model.service.js';
 
+// Name of the ollama service in docker-compose.yml.
+const OLLAMA_HOST = 'http://ollama:11434';
+
 @Injectable()
 export class OllamaModelService extends LlmModelService {
-  private readonly client: Ollama;
-
-  constructor(config: ConfigService) {
-    super();
-    this.client = new Ollama({
-      host: config.get('OLLAMA_HOST', 'http://localhost:11434'),
-    });
-  }
+  private readonly client = new Ollama({ host: OLLAMA_HOST });
 
   async *streamChat(messages: LlmMessage[], signal?: AbortSignal) {
     const stream = await this.client.chat({

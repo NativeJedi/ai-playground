@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { DemoLayout } from '../../layouts/DemoLayout'
+import { PROVIDERS, type Provider } from './ChatService'
 import { useChat } from './useChat'
 
 export function LlmSimpleChatPage() {
   const { messages, isStreaming, error, sendMessage, clear, stop } = useChat()
   const [input, setInput] = useState('')
+  const [provider, setProvider] = useState<Provider>('openai')
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -12,7 +14,7 @@ export function LlmSimpleChatPage() {
     if (!content || isStreaming) return
 
     setInput('')
-    void sendMessage(content)
+    void sendMessage(content, provider)
   }
 
   return (
@@ -34,6 +36,31 @@ export function LlmSimpleChatPage() {
         {error && <p className="text-sm text-red-600">{error}</p>}
       </div>
       <form onSubmit={handleSubmit} className="mt-4 flex gap-2">
+        <div className="relative">
+          <select
+            value={provider}
+            onChange={(event) => setProvider(event.target.value as Provider)}
+            disabled={isStreaming}
+            aria-label="Model provider"
+            className="h-full appearance-none rounded-lg border border-slate-300 bg-white py-2 pr-9 pl-3 outline-none focus:border-slate-500 disabled:opacity-40"
+          >
+            {PROVIDERS.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-slate-500"
+          >
+            <path d="m5 8 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
         <input
           value={input}
           onChange={(event) => setInput(event.target.value)}

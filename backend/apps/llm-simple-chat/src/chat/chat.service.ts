@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Message } from './entities/message.entity.js';
 import { Repository } from 'typeorm';
-import { OpenAI } from 'openai';
 import { OpenAiModelService } from '../models/openai-model.service.js';
 import { OllamaModelService } from '../models/ollama-model.service.js';
 import { LlmModelService, LlmProvider } from '../models/llm-model.service.js';
@@ -13,8 +12,6 @@ const SYSTEM_PROMPT = 'You are a helpful assistant. Keep answers short.';
 
 @Injectable()
 export class ChatService {
-  private readonly openai: OpenAI;
-
   private readonly llms: Record<LlmProvider, LlmModelService>;
 
   constructor(

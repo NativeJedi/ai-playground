@@ -1,24 +1,13 @@
-import type { ConfigService } from '@nestjs/config';
 import type { Repository } from 'typeorm';
 import { ChatService } from './chat.service.js';
-import type { Message } from './message.entity.js';
-
-const createCompletion = vi.fn();
-
-vi.mock('openai', () => ({
-  OpenAI: class {
-    chat = { completions: { create: createCompletion } };
-  },
-}));
+import type { Message } from './entities/message.entity.js';
+import type { OpenAiModelService } from '../models/openai-model.service.js';
+import type { OllamaModelService } from '../models/ollama-model.service.js';
 
 const conversation = { userId: 'user-1', conversationId: 'conversation-1' };
 
-function chunk(delta?: string) {
-  return { choices: [{ delta: { content: delta } }] };
-}
-
 async function* streamOf(deltas: string[], failAfterDeltas = false) {
-  for (const delta of deltas) yield chunk(delta);
+  for (const delta of deltas) yield delta;
   if (failAfterDeltas) throw new Error('stream failed');
 }
 
@@ -34,15 +23,17 @@ describe('ChatService', () => {
     insert: vi.fn(),
     delete: vi.fn(),
   };
+  const openai = { streamChat: vi.fn() };
+  const ollama = { streamChat: vi.fn() };
   let service: ChatService;
 
   beforeEach(() => {
     vi.resetAllMocks();
     messages.find.mockResolvedValue([]);
-    const config = { getOrThrow: () => 'test-key' } as unknown as ConfigService;
     service = new ChatService(
-      config,
       messages as unknown as Repository<Message>,
+      openai as unknown as OpenAiModelService,
+      ollama as unknown as OllamaModelService,
     );
   });
 
@@ -70,26 +61,35 @@ describe('ChatService', () => {
   });
 
   describe('streamReply', () => {
-    it('yields every delta and skips empty chunks', async () => {
-      createCompletion.mockResolvedValue(
-        (async function* () {
-          yield chunk('Hel');
-          yield chunk(undefined);
-          yield chunk('');
-          yield { choices: [] };
-          yield chunk('lo');
-        })(),
-      );
+    it('yields every delta of the model', async () => {
+      openai.streamChat.mockReturnValue(streamOf(['Hel', 'lo']));
 
-      const deltas = await collect(service.streamReply(conversation, 'hi'));
+      const deltas = await collect(
+        service.streamReply(conversation, 'hi', 'openai'),
+      );
 
       expect(deltas).toEqual(['Hel', 'lo']);
     });
 
-    it('saves the user message and the full reply once the stream completes', async () => {
-      createCompletion.mockResolvedValue(streamOf(['Hel', 'lo']));
+    it.each([
+      { provider: 'openai', used: openai, unused: ollama },
+      { provider: 'ollama', used: ollama, unused: openai },
+    ] as const)(
+      'uses only the $provider model for that provider',
+      async ({ provider, used, unused }) => {
+        used.streamChat.mockReturnValue(streamOf(['ok']));
 
-      await collect(service.streamReply(conversation, 'hi'));
+        await collect(service.streamReply(conversation, 'hi', provider));
+
+        expect(used.streamChat).toHaveBeenCalledOnce();
+        expect(unused.streamChat).not.toHaveBeenCalled();
+      },
+    );
+
+    it('saves the user message and the full reply once the stream completes', async () => {
+      openai.streamChat.mockReturnValue(streamOf(['Hel', 'lo']));
+
+      await collect(service.streamReply(conversation, 'hi', 'openai'));
 
       expect(messages.insert).toHaveBeenCalledWith([
         { ...conversation, role: 'user', content: 'hi' },
@@ -102,26 +102,30 @@ describe('ChatService', () => {
         { id: 1, ...conversation, role: 'user', content: 'first' },
         { id: 2, ...conversation, role: 'assistant', content: 'answer' },
       ]);
-      createCompletion.mockResolvedValue(streamOf(['ok']));
+      ollama.streamChat.mockReturnValue(streamOf(['ok']));
       const signal = new AbortController().signal;
 
-      await collect(service.streamReply(conversation, 'second', signal));
+      await collect(
+        service.streamReply(conversation, 'second', 'ollama', signal),
+      );
 
-      const [body, options] = createCompletion.mock.calls[0];
-      expect(body.stream).toBe(true);
-      expect(body.messages).toEqual([
-        { role: 'system', content: expect.any(String) },
-        { role: 'user', content: 'first' },
-        { role: 'assistant', content: 'answer' },
-        { role: 'user', content: 'second' },
-      ]);
-      expect(options).toEqual({ signal });
+      expect(ollama.streamChat).toHaveBeenCalledWith(
+        [
+          { role: 'system', content: expect.any(String) },
+          { role: 'user', content: 'first' },
+          { role: 'assistant', content: 'answer' },
+          { role: 'user', content: 'second' },
+        ],
+        signal,
+      );
     });
 
     it('still saves the partial reply when the stream fails midway', async () => {
-      createCompletion.mockResolvedValue(streamOf(['Par', 'tial'], true));
+      openai.streamChat.mockReturnValue(streamOf(['Par', 'tial'], true));
 
-      const deltas = await collect(service.streamReply(conversation, 'hi'));
+      const deltas = await collect(
+        service.streamReply(conversation, 'hi', 'openai'),
+      );
 
       expect(deltas).toEqual(['Par', 'tial']);
       expect(messages.insert).toHaveBeenCalledWith([
@@ -131,9 +135,9 @@ describe('ChatService', () => {
     });
 
     it('saves the partial reply when the consumer stops reading early', async () => {
-      createCompletion.mockResolvedValue(streamOf(['Par', 'tial']));
+      openai.streamChat.mockReturnValue(streamOf(['Par', 'tial']));
 
-      const stream = service.streamReply(conversation, 'hi');
+      const stream = service.streamReply(conversation, 'hi', 'openai');
       await stream.next();
       await stream.return(undefined);
 
@@ -144,9 +148,9 @@ describe('ChatService', () => {
     });
 
     it('saves nothing when no reply was received', async () => {
-      createCompletion.mockResolvedValue(streamOf([]));
+      openai.streamChat.mockReturnValue(streamOf([]));
 
-      await collect(service.streamReply(conversation, 'hi'));
+      await collect(service.streamReply(conversation, 'hi', 'openai'));
 
       expect(messages.insert).not.toHaveBeenCalled();
     });

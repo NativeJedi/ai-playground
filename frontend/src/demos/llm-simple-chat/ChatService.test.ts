@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { postSse, type SseEvent } from '../../lib/sse'
-import { ChatService, type ChatMessage } from './ChatService.ts'
+import { ChatService, PROVIDERS, type ChatMessage } from './ChatService.ts'
 
 vi.mock('../../lib/sse')
 
@@ -89,15 +89,15 @@ describe('ChatService', () => {
   })
 
   describe('send', () => {
-    it('posts the message with the user header', async () => {
+    it.each(PROVIDERS)('posts the message with the %s provider and the user header', async (provider) => {
       await mountWithHistory()
       postSseMock.mockImplementation(() => eventStream([done]))
 
-      await service.send('hi')
+      await service.send('hi', provider)
 
       expect(postSseMock).toHaveBeenCalledWith(
         MESSAGES_URL,
-        { content: 'hi' },
+        { content: 'hi', provider },
         { headers: HEADERS, signal: expect.any(AbortSignal) },
       )
     })
@@ -106,7 +106,7 @@ describe('ChatService', () => {
       await mountWithHistory([{ role: 'assistant', content: 'earlier' }])
       postSseMock.mockImplementation(() => eventStream([delta('Hel'), delta('lo'), done]))
 
-      await service.send('hi')
+      await service.send('hi', 'openai')
 
       const earlier: ChatMessage = { role: 'assistant', content: 'earlier' }
       const user: ChatMessage = { role: 'user', content: 'hi' }
@@ -121,7 +121,7 @@ describe('ChatService', () => {
       await mountWithHistory()
       postSseMock.mockImplementation(() => eventStream([delta('Hi'), done, delta('ignored')]))
 
-      await service.send('hi')
+      await service.send('hi', 'openai')
 
       expect(lastMessages()?.at(-1)?.content).toBe('Hi')
     })
@@ -131,7 +131,7 @@ describe('ChatService', () => {
       const failed: SseEvent = { event: 'error', data: 'model overloaded' }
       postSseMock.mockImplementation(() => eventStream([delta('Par'), failed]))
 
-      await service.send('hi')
+      await service.send('hi', 'openai')
 
       expect(onError).toHaveBeenCalledWith(new Error('model overloaded'))
       expect(lastMessages()?.at(-1)).toEqual({ role: 'assistant', content: 'Par' })
@@ -143,7 +143,7 @@ describe('ChatService', () => {
         throw new Error('Request failed with status 502')
       })
 
-      await service.send('hi')
+      await service.send('hi', 'openai')
 
       expect(onError).toHaveBeenCalledWith(new Error('Request failed with status 502'))
       expect(lastMessages()).toEqual([{ role: 'user', content: 'hi' }])
@@ -155,7 +155,7 @@ describe('ChatService', () => {
         throw 'boom'
       })
 
-      await service.send('hi')
+      await service.send('hi', 'openai')
 
       expect(onError).toHaveBeenCalledWith(new Error('Something went wrong'))
     })
@@ -166,7 +166,7 @@ describe('ChatService', () => {
       await mountWithHistory()
       postSseMock.mockImplementation(openStream([delta('Hel')]))
 
-      const sending = service.send('hi')
+      const sending = service.send('hi', 'openai')
       await vi.waitFor(() => expect(lastMessages()?.at(-1)?.content).toBe('Hel'))
       service.abort()
       await sending
@@ -179,7 +179,7 @@ describe('ChatService', () => {
       await mountWithHistory()
       postSseMock.mockImplementation(openStream([]))
 
-      const sending = service.send('hi')
+      const sending = service.send('hi', 'openai')
       service.abort()
       await sending
 
@@ -190,11 +190,11 @@ describe('ChatService', () => {
     it('aborts the reply in progress when a new message is sent', async () => {
       await mountWithHistory()
       postSseMock.mockImplementationOnce(openStream([delta('Hel')]))
-      const first = service.send('one')
+      const first = service.send('one', 'openai')
       await vi.waitFor(() => expect(lastMessages()?.at(-1)?.content).toBe('Hel'))
 
       postSseMock.mockImplementationOnce(() => eventStream([delta('Second'), done]))
-      await service.send('two')
+      await service.send('two', 'openai')
       await first
 
       expect(postSseMock.mock.calls[0][2]?.signal?.aborted).toBe(true)
@@ -232,7 +232,7 @@ describe('ChatService', () => {
     it('aborts the reply in progress and silences the handlers', async () => {
       await mountWithHistory()
       postSseMock.mockImplementation(openStream([delta('Hel')]))
-      const sending = service.send('hi')
+      const sending = service.send('hi', 'openai')
       await vi.waitFor(() => expect(lastMessages()?.at(-1)?.content).toBe('Hel'))
       onMessages.mockClear()
 

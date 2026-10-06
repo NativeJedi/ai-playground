@@ -2,6 +2,10 @@ import { postSse } from '../../lib/sse'
 
 export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 
+// Must match the providers the backend accepts.
+export const PROVIDERS = ['openai', 'ollama'] as const
+export type Provider = (typeof PROVIDERS)[number]
+
 type ChatServiceHandlers = {
   // Called with the full, up-to-date list every time it changes.
   onMessages: (messages: ChatMessage[]) => void
@@ -44,7 +48,7 @@ export class ChatService {
   }
 
   // Resolves when the reply ends for any reason: completed, failed or aborted.
-  async send(content: string): Promise<void> {
+  async send(content: string, provider: Provider): Promise<void> {
     this.abort()
     this.dropEmptyReply()
     const controller = new AbortController()
@@ -58,7 +62,7 @@ export class ChatService {
     try {
       const events = postSse(
         MESSAGES_URL,
-        { content },
+        { content, provider },
         { headers: HEADERS, signal: controller.signal },
       )
       for await (const { event, data } of events) {
