@@ -17,7 +17,7 @@ import {
   SendMessageDto,
 } from './chat.dto.js';
 import { endWith, from, map, Observable } from 'rxjs';
-import { UserId } from './user-id.decorator.js';
+import { UserId } from '../decorators/user-id.decorator.js';
 
 @Controller('conversations/:conversationId/messages')
 export class ChatController {
@@ -40,12 +40,17 @@ export class ChatController {
   send(
     @UserId() userId: string,
     @Param() { conversationId }: ConversationParamsDto,
-    @Body() { content }: SendMessageDto,
+    @Body() { content, provider }: SendMessageDto,
     // Aborted by Nest when the client disconnects.
     @SseSignal() signal: AbortSignal,
   ): Observable<MessageEvent> {
     return from(
-      this.chatService.streamReply({ userId, conversationId }, content, signal),
+      this.chatService.streamReply(
+        { userId, conversationId },
+        content,
+        provider,
+        signal,
+      ),
     ).pipe(
       map((delta) => ({ data: { delta } })),
       endWith({ type: 'done', data: {} }),

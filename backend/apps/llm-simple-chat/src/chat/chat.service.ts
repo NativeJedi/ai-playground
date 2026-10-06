@@ -1,26 +1,28 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Message } from './message.entity.js';
+import { Message } from './entities/message.entity.js';
 import { Repository } from 'typeorm';
 import { OpenAI } from 'openai';
+import { OpenAiModelService } from '../models/openai-model.service.js';
+import { OllamaModelService } from '../models/ollama-model.service.js';
+import { LlmModelService, LlmProvider } from '../models/llm-model.service.js';
 
 type ConversationDto = { userId: string; conversationId: string };
 
-const MODEL = 'gpt-4.1-mini';
 const SYSTEM_PROMPT = 'You are a helpful assistant. Keep answers short.';
 
 @Injectable()
 export class ChatService {
   private readonly openai: OpenAI;
 
+  private readonly llms: Record<LlmProvider, LlmModelService>;
+
   constructor(
-    config: ConfigService,
     @InjectRepository(Message) private readonly messages: Repository<Message>,
+    openai: OpenAiModelService,
+    ollama: OllamaModelService,
   ) {
-    this.openai = new OpenAI({
-      apiKey: config.getOrThrow<string>('OPENAI_API_KEY'),
-    });
+    this.llms = { openai, ollama };
   }
 
   getHistory({ userId, conversationId }: ConversationDto): Promise<Message[]> {
@@ -38,38 +40,32 @@ export class ChatService {
   }
 
   async *streamReply(
-    { userId, conversationId }: ConversationDto,
+    conversation: ConversationDto,
     content: string,
+    provider: LlmProvider,
     signal?: AbortSignal,
   ): AsyncGenerator<string> {
-    const history = await this.getHistory({ userId, conversationId });
+    const history = await this.getHistory(conversation);
 
-    const stream = await this.openai.chat.completions.create(
-      {
-        model: MODEL,
-        stream: true,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          ...history.map(({ role, content }) => ({ role, content })),
-          { role: 'user', content },
-        ],
-      },
-      { signal },
+    const stream = this.llms[provider].streamChat(
+      [
+        { role: 'system', content: SYSTEM_PROMPT },
+        ...history.map(({ role, content }) => ({ role, content })),
+        { role: 'user', content },
+      ],
+      signal,
     );
 
     let reply = '';
-
     try {
-      for await (const chunk of stream) {
-        const delta = chunk.choices[0]?.delta?.content;
-        if (!delta) continue;
+      for await (const delta of stream) {
         reply += delta;
         yield delta;
       }
     } catch {
       // Aborted or failed midway: keep whatever has arrived.
     } finally {
-      await this.saveExchange({ userId, conversationId }, content, reply);
+      await this.saveExchange(conversation, content, reply);
     }
   }
 

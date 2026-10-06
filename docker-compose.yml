@@ -17,6 +17,23 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      ollama:
+        condition: service_healthy
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    post_start:
+      - command: sh -c "until ollama list >/dev/null 2>&1; do sleep 1; done; ollama pull llama3.2"
+    healthcheck:
+      test: [ "CMD", "ollama", "show", "llama3.2" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10m
 
   postgres:
     image: postgres:17-alpine
@@ -34,3 +51,4 @@ services:
 
 volumes:
   postgres-data:
+  ollama-data:

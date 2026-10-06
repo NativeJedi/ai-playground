@@ -4,7 +4,7 @@ import { DatabaseModule } from '@app/database';
 import { ChatController } from './chat/chat.controller.js';
 import { ChatService } from './chat/chat.service.js';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Message } from './chat/message.entity.js';
+import { Message } from './chat/entities/message.entity.js';
 
 @Module({
   imports: [RootEnvModule, DatabaseModule, TypeOrmModule.forFeature([Message])],
